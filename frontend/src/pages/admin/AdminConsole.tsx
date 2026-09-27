@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../../api/client";
+import { api, API_BASE } from "../../api/client";
 import { useApi, useApiMutation } from "../../api/hooks";
 import type { AdminCaseworker, AdminUser, AuditEntry, Setting, SystemStatus } from "../../api/types";
 import { Button, Card, Empty, ErrorBox, Field, Input, Loading, Modal, PageHeader, Pill, Select, Stat } from "../../components/ui";
@@ -312,7 +312,8 @@ function ApiCatalogue() {
   const [error, setError] = useState<unknown>(null);
   const [q, setQ] = useState("");
   useEffect(() => { api<OpenApi>("/openapi.json").then(setSpec).catch(setError); }, []);
-  const docsBase = `${window.location.protocol}//${window.location.hostname}:8080`;
+  // Interactive docs live on the API itself: :8080 locally, or VITE_API_BASE when deployed.
+  const docsBase = API_BASE.startsWith("http") ? API_BASE : `${window.location.protocol}//${window.location.hostname}:8080`;
   const groups = useMemo(() => {
     const out = new Map<string, { method: string; path: string; summary: string; description: string }[]>();
     for (const [path, ops] of Object.entries(spec?.paths ?? {})) {

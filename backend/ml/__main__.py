@@ -25,7 +25,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from . import db, drift, registry, repeat
+from . import db, drift, registry, repeat, store
 from .allocate import allocate_all_cycles
 from .evaluate import PRIMARY, evaluate, format_report
 from .features import add_poverty_gap, build_features, feature_matrix
@@ -231,6 +231,16 @@ def cmd_drift(args) -> None:
         print(f"  {f['level']:5s} {f['feature']}: PSI {f['psi']:.3f}")
 
 
+def cmd_push_models(args) -> None:
+    """Upload versions already on disk to the model repository (store.py)."""
+    if store.repo_id() is None:
+        sys.exit("Set HARDSHIP_MODEL_REPO (and HF_TOKEN) first.")
+    names = args.versions or sorted(p.name for p in registry.MODELS_DIR.iterdir() if (p / "metadata.json").exists())
+    for name in names:
+        store.publish(registry.MODELS_DIR / name)
+        print(f"Uploaded {name} to {store.repo_id()}")
+
+
 def cmd_models(args) -> None:
     print(db.list_model_versions(args.dsn).to_string(index=False))
 
@@ -255,6 +265,9 @@ def main(argv=None) -> None:
     p.add_argument("--cycle", type=int, help="only this funding cycle")
     p.set_defaults(func=cmd_score)
     sub.add_parser("models", help="list registered versions").set_defaults(func=cmd_models)
+    p = sub.add_parser("push-models", help="upload model folders on disk to the model repository")
+    p.add_argument("versions", nargs="*", help="default: every version in models/")
+    p.set_defaults(func=cmd_push_models)
     p = sub.add_parser("train-repeat", help="evaluate, fit and register a repeat-support forecaster")
     p.add_argument("--version", help="version name (default repeat-<utc timestamp>)")
     p.set_defaults(func=cmd_train_repeat)

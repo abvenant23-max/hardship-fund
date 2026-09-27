@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from sqlalchemy import MetaData, Table, create_engine
 from sqlalchemy.engine import Connection, Engine
 
+from ..ml.db import sqlalchemy_url
 from .config import settings
 
 TABLES = [
@@ -19,7 +20,7 @@ TABLES = [
 
 class Database:
     def __init__(self, dsn: str):
-        self.engine: Engine = create_engine(dsn, pool_pre_ping=True)
+        self.engine: Engine = create_engine(sqlalchemy_url(dsn), pool_pre_ping=True)
         self.metadata = MetaData()
         self.metadata.reflect(self.engine, only=TABLES)
 

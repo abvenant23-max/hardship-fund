@@ -15,3 +15,6 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 pyjwt>=2.8
 python-multipart>=0.0.9
+
+# Model artifacts on the Hugging Face Hub (optional; backend/ml/store.py)
+huggingface_hub>=0.24

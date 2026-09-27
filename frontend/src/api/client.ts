@@ -1,5 +1,8 @@
 // Thin fetch wrapper for the FastAPI backend, served under /api (Vite's dev
-// proxy locally, nginx in the container).
+// proxy locally, nginx in the container). A static deployment with the API
+// elsewhere sets VITE_API_BASE at build time, e.g. https://api.example.com.
+
+export const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "/api";
 
 const TOKEN_KEY = "hf.token";
 
@@ -54,7 +57,7 @@ export async function api<T>(path: string, opts: { method?: string; params?: Par
     body = JSON.stringify(opts.body);
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(`/api${path}${query(opts.params)}`, { method: opts.method ?? "GET", headers, body });
+  const res = await fetch(`${API_BASE}${path}${query(opts.params)}`, { method: opts.method ?? "GET", headers, body });
   if (res.status === 204) return undefined as T;
   const json = await res.json().catch(() => null);
   if (!res.ok) {

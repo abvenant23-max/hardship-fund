@@ -18,6 +18,7 @@ python -m backend.ml models              # list registered versions
 python -m backend.ml train-repeat        # repeat-support forecaster (planning only); then activate it
 python -m backend.ml forecast            # write repeat forecasts for every application
 python -m backend.ml drift               # monthly drift report for the active need model
+python -m backend.ml push-models         # copy models/ to the Hugging Face repository (HARDSHIP_MODEL_REPO)
 ```
 
 Run `drift` monthly (the design spec's schedule), e.g. from cron on the
@@ -57,6 +58,7 @@ them with `train`.
 | `evaluate.py` | Side-by-side out-of-fold evaluation of all candidates, activation gates |
 | `audit.py` | Disaggregated fairness audit across the spec's nine dimensions |
 | `registry.py` | Model artifacts on disk |
+| `store.py` | Optional copy of every artifact in a private Hugging Face model repository, downloaded when missing on disk (hosted deployments; docs/DEPLOY.md) |
 | `repeat.py` | Repeat-support forecast (planning only): labels, two candidates, calibration, evaluation |
 | `drift.py` | Reference profile stored at training; monthly PSI / SHAP-stability / coverage report |
 | `db.py` | Postgres reads/writes, model registry |

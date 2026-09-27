@@ -15,6 +15,16 @@ from psycopg2.extras import Json, RealDictCursor
 from sqlalchemy import create_engine
 
 
+
+def sqlalchemy_url(dsn: str) -> str:
+    """Name the psycopg2 driver explicitly: SQLAlchemy 2.1 made plain
+    postgresql:// mean psycopg 3, which isn't installed. Also accepts the
+    older postgres:// scheme some hosts hand out."""
+    for prefix in ("postgres://", "postgresql://"):
+        if dsn.startswith(prefix):
+            return "postgresql+psycopg2://" + dsn[len(prefix):]
+    return dsn
+
 def get_conn(dsn: str):
     return psycopg2.connect(dsn)
 
@@ -22,7 +32,7 @@ def get_conn(dsn: str):
 def load_raw_tables(dsn: str) -> dict[str, pd.DataFrame]:
     # pandas only supports SQLAlchemy connectables for read_sql; a raw
     # psycopg2 connection works but warns on every call.
-    engine = create_engine(dsn)
+    engine = create_engine(sqlalchemy_url(dsn))
     try:
         tables = {
             "households": "SELECT * FROM households",
@@ -145,7 +155,7 @@ def get_model_version(dsn: str, version: str | None = None, purpose: str = "need
 
 
 def list_model_versions(dsn: str) -> pd.DataFrame:
-    engine = create_engine(dsn)
+    engine = create_engine(sqlalchemy_url(dsn))
     try:
         with engine.connect() as conn:
             return pd.read_sql(

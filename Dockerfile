@@ -12,8 +12,9 @@ COPY backend ./backend
 COPY db ./db
 COPY data ./data
 
-ENV PYTHONUNBUFFERED=1
+# PORT is 8080 locally; hosts such as Render set their own.
+ENV PYTHONUNBUFFERED=1 PORT=8080
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
-CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+    CMD python -c "import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health' % os.environ['PORT'])"
+CMD ["sh", "-c", "exec uvicorn backend.api.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]

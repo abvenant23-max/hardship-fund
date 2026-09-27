@@ -1,7 +1,8 @@
 """Model artifacts on disk: models/<version>/ holds the fitted model files,
 metadata.json (everything needed to score reproducibly) and metrics.json
 (the evaluation the version was judged on). Which version is live is
-tracked in the model_versions table (db.py), not here.
+tracked in the model_versions table (db.py), not here. When a model
+repository is configured, store.py keeps a copy of every version there.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import store
 from .baselines import RuleBasedModel
 from .model import LGBMNeedModel
 from .repeat import HistoryRepeatModel, LGBMRepeatModel
@@ -50,6 +52,9 @@ def save(model, version: str, metadata: dict, metrics: dict,
     meta = {"version": version, **model.save(directory), **metadata}
     (directory / "metadata.json").write_text(json.dumps(meta, indent=2, default=str), encoding="utf-8")
     (directory / "metrics.json").write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
+    repo = store.publish(directory)
+    if repo:
+        print(f"Uploaded {version} to the model repository {repo}")
     return directory
 
 
@@ -58,18 +63,21 @@ def load(kind: str, artifact_path: str | Path | None):
     if kind == RuleBasedModel.kind:
         return RuleBasedModel()
     if kind in ARTIFACT_KINDS:
-        directory = Path(artifact_path)
-        if not directory.is_absolute():
-            directory = MODELS_DIR.parent / directory
+        directory = _local(artifact_path)
         return ARTIFACT_KINDS[kind].load(directory, read_metadata(directory))
     raise ValueError(f"unknown model kind {kind!r}")
 
 
 def read_metadata(directory: str | Path) -> dict:
-    directory = Path(directory)
+    return json.loads((_local(directory) / "metadata.json").read_text(encoding="utf-8"))
+
+
+def _local(artifact_path: str | Path) -> Path:
+    """The version's folder on disk, fetched from the model repository if missing."""
+    directory = Path(artifact_path)
     if not directory.is_absolute():
         directory = MODELS_DIR.parent / directory
-    return json.loads((directory / "metadata.json").read_text(encoding="utf-8"))
+    return store.fetch(directory)
 
 
 def relative_to_project(path: Path) -> str:

@@ -13,6 +13,7 @@ demo a real dashboard against.
 ```
 docker-compose.yml    Postgres + API + web app, one command
 Dockerfile            API image
+render.yaml           Render blueprint: database, API, web app (docs/DEPLOY.md)
 frontend/             React web app: dashboard, data entry, review queue, cycles,
                       models; two roles, light and dark themes (frontend/README.md)
 backend/api/          FastAPI app: data entry, cycle allocation, human review,
@@ -26,13 +27,16 @@ db/
   erd.mmd             Entity-relationship diagram (Mermaid)
   seed/*.csv          The synthetic dataset, one CSV per table
   load_data.py        Loads schema.sql + views.sql + seed/*.csv into any Postgres instance
+  setup_database.py   One-off setup of a new hosted database, optionally training the models
   migrations/         Changes for databases created before a schema update (see below)
 data/
   generate_synthetic_data.py   Regenerate the synthetic dataset
-models/               Trained model artifacts (git-ignored; built by `train`)
+models/               Trained model artifacts (git-ignored; built by `train`; optionally
+                      copied to a Hugging Face model repository, backend/ml/store.py)
 tests/                pytest: unit tests (no database) + API tests (need Postgres)
 docs/
   API.md              API guide for the frontend
+  DEPLOY.md           Putting it online: Render + Hugging Face Hub, step by step
   DATA_DICTIONARY.md  Every table and column, with notes on what's safe to use where
   ROADMAP.md          Plan, decisions and progress
 ```
@@ -68,6 +72,12 @@ docker compose run --rm api python -m backend.ml --dsn $DSN train        # print
 docker compose run --rm api python -m backend.ml --dsn $DSN activate <version>
 docker compose run --rm api python -m backend.ml --dsn $DSN score
 ```
+
+### Putting it online
+
+`render.yaml` deploys the database, API and web app to Render. The trained
+models are kept in a private Hugging Face model repository, because Render's
+disks don't survive a restart. Follow [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ### Showing it to a client
 

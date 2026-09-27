@@ -86,5 +86,15 @@ penalise people for having needed help before.
   - Admin console: accounts, caseworkers, validated programme settings, a
     full activity log, system status and the API catalogue.
   - Migration `003`.
+- [x] **Deployment setup.** (done 27 Sep 2026)
+  - Render blueprint (`render.yaml`) with a free database, API and static web
+    app.
+  - Model artifacts in a private Hugging Face repository, uploaded on
+    training and downloaded on first use.
+  - `db/setup_database.py` sets up a hosted database in one command.
+  - The API port and the web app's API address are configurable.
+  - The database driver is named explicitly: SQLAlchemy 2.1 would otherwise
+    look for psycopg 3.
+  - Guide: `docs/DEPLOY.md`.
 
 Demo target: Phases 0–1 plus the dashboard endpoints of Phase 2.
