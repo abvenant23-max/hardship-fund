@@ -312,8 +312,11 @@ function ApiCatalogue() {
   const [error, setError] = useState<unknown>(null);
   const [q, setQ] = useState("");
   useEffect(() => { api<OpenApi>("/openapi.json").then(setSpec).catch(setError); }, []);
-  // Interactive docs live on the API itself: :8080 locally, or VITE_API_BASE when deployed.
-  const docsBase = API_BASE.startsWith("http") ? API_BASE : `${window.location.protocol}//${window.location.hostname}:8080`;
+  // Interactive docs live on the API itself: :8080 beside Docker Compose or the dev server,
+  // under /api on the same address when one server does both (the Hugging Face Space).
+  const docsBase = API_BASE.startsWith("http") ? API_BASE
+    : ["3000", "5173"].includes(window.location.port) ? `${window.location.protocol}//${window.location.hostname}:8080`
+    : `${window.location.origin}${API_BASE}`;
   const groups = useMemo(() => {
     const out = new Map<string, { method: string; path: string; summary: string; description: string }[]>();
     for (const [path, ops] of Object.entries(spec?.paths ?? {})) {

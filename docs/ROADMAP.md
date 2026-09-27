@@ -87,8 +87,11 @@ penalise people for having needed help before.
     full activity log, system status and the API catalogue.
   - Migration `003`.
 - [x] **Deployment setup.** (done 27 Sep 2026)
-  - Render blueprint (`render.yaml`) with a free database, API and static web
-    app.
+  - Target: a Hugging Face Space (web app and API in one container,
+    `space/Dockerfile`, `backend/web.py`) with Neon Postgres. Render was
+    prepared first and then dropped.
+  - `deploy/push_space.py` publishes the Space; a GitHub workflow runs it
+    on every push to `main`.
   - Model artifacts in a private Hugging Face repository, uploaded on
     training and downloaded on first use.
   - `db/setup_database.py` sets up a hosted database in one command.

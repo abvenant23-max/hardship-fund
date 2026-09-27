@@ -12,7 +12,7 @@ COPY backend ./backend
 COPY db ./db
 COPY data ./data
 
-# PORT is 8080 locally; hosts such as Render set their own.
+# PORT is 8080 locally; a host can set its own.
 ENV PYTHONUNBUFFERED=1 PORT=8080
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s \

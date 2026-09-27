@@ -1,6 +1,6 @@
 """Optional remote copy of the model artifacts on the Hugging Face Hub.
 
-Hosts like Render wipe a service's disk on every deploy and restart, so
+Hosts like Hugging Face Spaces wipe a container's disk on every deploy and restart, so
 models/<version>/ can't live only on disk there. When HARDSHIP_MODEL_REPO
 is set (e.g. "your-name/hardship-models", best kept private), every saved
 version is also uploaded to that repository under <version>/, and a

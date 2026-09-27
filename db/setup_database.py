@@ -1,4 +1,4 @@
-"""One-off setup of a new, empty database (for example a Render Postgres),
+"""One-off setup of a new, empty database (for example on Neon),
 run from your own computer against its external connection string.
 
     python db/setup_database.py --dsn "postgresql://..."           # tables, views, sample data

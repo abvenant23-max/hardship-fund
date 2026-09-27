@@ -13,7 +13,8 @@ demo a real dashboard against.
 ```
 docker-compose.yml    Postgres + API + web app, one command
 Dockerfile            API image
-render.yaml           Render blueprint: database, API, web app (docs/DEPLOY.md)
+space/                Hugging Face Space: one-container Dockerfile + Space card (docs/DEPLOY.md)
+deploy/push_space.py  Publish the app to the Space (also run by .github/workflows/space.yml)
 frontend/             React web app: dashboard, data entry, review queue, cycles,
                       models; two roles, light and dark themes (frontend/README.md)
 backend/api/          FastAPI app: data entry, cycle allocation, human review,
@@ -36,7 +37,7 @@ models/               Trained model artifacts (git-ignored; built by `train`; op
 tests/                pytest: unit tests (no database) + API tests (need Postgres)
 docs/
   API.md              API guide for the frontend
-  DEPLOY.md           Putting it online: Render + Hugging Face Hub, step by step
+  DEPLOY.md           Putting it online: Hugging Face Space + Neon Postgres, step by step
   DATA_DICTIONARY.md  Every table and column, with notes on what's safe to use where
   ROADMAP.md          Plan, decisions and progress
 ```
@@ -75,9 +76,9 @@ docker compose run --rm api python -m backend.ml --dsn $DSN score
 
 ### Putting it online
 
-`render.yaml` deploys the database, API and web app to Render. The trained
-models are kept in a private Hugging Face model repository, because Render's
-disks don't survive a restart. Follow [docs/DEPLOY.md](docs/DEPLOY.md).
+The online demo runs as a free Hugging Face Space: the web app and API in
+one container, with the database on Neon and the trained models in a private
+Hugging Face model repository. Follow [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ### Showing it to a client
 

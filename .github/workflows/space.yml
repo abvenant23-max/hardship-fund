@@ -1,0 +1,25 @@
+# Publish the app to the Hugging Face Space on every push to main.
+# Needs, in GitHub → Settings → Secrets and variables → Actions:
+#   secret   HF_TOKEN  a Hugging Face token with write access to the Space
+#   variable HF_SPACE  the Space, e.g. your-name/hardship-fund
+# Without them the job is skipped. Guide: docs/DEPLOY.md.
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ vars.HF_SPACE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "huggingface_hub>=0.24"
+      - run: python deploy/push_space.py --space "${{ vars.HF_SPACE }}" --message "Deploy ${{ github.sha }}"
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
