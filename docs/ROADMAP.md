@@ -87,9 +87,11 @@ penalise people for having needed help before.
     full activity log, system status and the API catalogue.
   - Migration `003`.
 - [x] **Deployment setup.** (done 27 Sep 2026)
-  - Target: a Hugging Face Space (web app and API in one container,
-    `space/Dockerfile`, `backend/web.py`) with Neon Postgres. Render was
+  - Target: a free Hugging Face Space with Neon Postgres. Render was
     prepared first and then dropped.
+  - The Space runs on the Gradio SDK, used only as a Python runtime:
+    `space/app.py` starts `backend/web.py`, which serves the web app and the
+    API from one address. Docker Spaces aren't free for every account.
   - `deploy/push_space.py` publishes the Space; a GitHub workflow runs it
     on every push to `main`.
   - Model artifacts in a private Hugging Face repository, uploaded on

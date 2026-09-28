@@ -19,6 +19,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4     # the script builds the web app
+        with:
+          node-version: "22"
       - run: pip install "huggingface_hub>=0.24"
       - run: python deploy/push_space.py --space "${{ vars.HF_SPACE }}" --message "Deploy ${{ github.sha }}"
         env:

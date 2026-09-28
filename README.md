@@ -13,7 +13,7 @@ demo a real dashboard against.
 ```
 docker-compose.yml    Postgres + API + web app, one command
 Dockerfile            API image
-space/                Hugging Face Space: one-container Dockerfile + Space card (docs/DEPLOY.md)
+space/                Hugging Face Space: app.py entry point, system packages, Space card (docs/DEPLOY.md)
 deploy/push_space.py  Publish the app to the Space (also run by .github/workflows/space.yml)
 frontend/             React web app: dashboard, data entry, review queue, cycles,
                       models; two roles, light and dark themes (frontend/README.md)

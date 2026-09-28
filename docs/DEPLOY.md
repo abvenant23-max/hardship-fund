@@ -4,7 +4,7 @@ The online setup has three parts, all on free tiers:
 
 | Part | Where | Notes |
 |---|---|---|
-| Web app + API | A public **Hugging Face Space** (Docker) at `https://<owner>-<name>.hf.space` | One container. The app is at `/` and the API at `/api` (docs at `/api/docs`). Built from `space/Dockerfile` |
+| Web app + API | A public **Hugging Face Space** on the free **Gradio** SDK and **CPU basic** hardware, at `https://<owner>-<name>.hf.space` | The Gradio SDK is only used as a Python runtime. `space/app.py` starts our own FastAPI server, with the app at `/` and the API at `/api` (docs at `/api/docs`). Docker Spaces aren't free for every account, so we don't use one |
 | Database | **Neon** Postgres | Our data is about 20 MB |
 | Trained models | A **private** Hugging Face model repository | The Space's disk is wiped on every restart, so the API downloads the active model the first time it needs it (`backend/ml/store.py`). Each model is about 4 MB |
 
@@ -64,14 +64,32 @@ migrations.
 
 ## 3. Publish the Space
 
+You don't have to create the Space by hand: the script creates it on its
+first run as a public **Gradio** Space on free **CPU basic** hardware. If you
+prefer to create it on the website (**New Space**), choose:
+
+- SDK: **Gradio**, template **Blank**;
+- hardware: **CPU basic · Free**;
+- visibility: **Public**.
+
+Keep the name the same as the one you pass to the script.
+
+The script needs Node.js 20 or newer, because it builds the web app on your
+computer: Gradio Spaces can't build it themselves.
+
 ```powershell
 python deploy/push_space.py --space your-username/hardship-fund    # HF_TOKEN still set from step 2
 ```
 
-This creates the Space if needed and uploads what it needs to build:
-`backend/`, `frontend/`, `requirements.txt`, and `space/Dockerfile` and
-`space/README.md` as its root files. Add `--dry-run` to list the files
-without uploading anything.
+It builds the web app and uploads:
+
+- `backend/`;
+- the built app as `web/`;
+- `requirements.txt`;
+- `space/app.py`, `space/packages.txt` and `space/README.md`, placed at the
+  Space's root.
+
+Add `--dry-run` to list the files without uploading anything.
 
 On the Space's page, open **Settings → Variables and secrets** and add these
 **secrets**:
@@ -85,7 +103,8 @@ On the Space's page, open **Settings → Variables and secrets** and add these
 | `HF_TOKEN` | The token that can read the model repository |
 
 Then choose **Restart this Space** (in Settings, or the **⋮** menu). The
-first build takes a few minutes. When the status shows **Running**, open
+first start takes a few minutes while the Space installs the Python
+packages. When the status shows **Running**, open
 `https://your-username-hardship-fund.hf.space` and sign in as `admin` with
 your password.
 
@@ -127,14 +146,14 @@ site.
 - **Space storage:** the Space's disk is temporary. Nothing the app needs
   lives there: data is in Neon and models are in the model repository.
 
-## Running the Space image locally
+## Trying the Space locally
 
 To check a change before publishing:
 
 ```bash
-python -c "import sys; sys.path.insert(0, 'deploy'); import push_space, pathlib; push_space.stage(pathlib.Path('space-build'))"
-docker build -t hardship-space space-build
-docker run -p 7860:7860 -e HARDSHIP_DSN=... -e HARDSHIP_SECRET=... -e HARDSHIP_ADMIN_PASSWORD=... hardship-space
+python deploy/push_space.py --stage-only space-build     # builds the web app, writes the Space's files
+cd space-build && pip install -r requirements.txt
+HARDSHIP_DSN=... HARDSHIP_SECRET=... HARDSHIP_ADMIN_PASSWORD=... python app.py   # http://localhost:7860
 ```
 
 `space-build/` is git-ignored.

@@ -1,5 +1,5 @@
 """The web app and the API from one process and one address, for hosts that
-run a single container (the Hugging Face Space, see space/Dockerfile):
+run one process (the Hugging Face Space, started by space/app.py):
 
     /api/...     the API (backend.api.main), docs at /api/docs
     /assets/...  the built web app's files
