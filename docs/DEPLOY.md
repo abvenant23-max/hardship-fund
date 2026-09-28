@@ -1,6 +1,13 @@
 # Deploying to Hugging Face Spaces + Neon
 
-The online setup has three parts, all on free tiers:
+> **Cost:** Hugging Face now requires a paid plan (PRO, for a personal
+> account) to create a Gradio or Docker Space, even on the free CPU basic
+> hardware. Free accounts only get Static Spaces, or up to 2 Gradio Spaces on
+> ZeroGPU, which is meant for GPU demos. So the Space below needs a PRO
+> account. Neon and the model repository stay free. Source: the Spaces
+> overview in Hugging Face's docs, checked 28 Sep 2026.
+
+The online setup has three parts:
 
 | Part | Where | Notes |
 |---|---|---|
