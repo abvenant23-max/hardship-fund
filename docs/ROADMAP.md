@@ -87,8 +87,11 @@ penalise people for having needed help before.
     full activity log, system status and the API catalogue.
   - Migration `003`.
 - [x] **Deployment setup.** (done 27 Sep 2026)
-  - Target: a free Hugging Face Space with Neon Postgres. Render was
-    prepared first and then dropped.
+  - Target: Render's free tier with one web service (`deploy/web.Dockerfile`,
+    `backend/web.py`: the app and the API from one address), Render Postgres
+    (or Neon) and the models on the Hugging Face Hub. The code moved to a
+    new GitHub account for Render on 28 Sep. A Hugging Face Space setup also
+    exists, but Spaces now need a paid plan.
   - The Space runs on the Gradio SDK, used only as a Python runtime:
     `space/app.py` starts `backend/web.py`, which serves the web app and the
     API from one address. Docker Spaces aren't free for every account.
