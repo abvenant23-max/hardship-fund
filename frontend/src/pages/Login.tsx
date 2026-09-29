@@ -33,10 +33,6 @@ export default function Login() {
         <Field label="Password"><Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
         {error && <div className="callout error" role="alert">{error}</div>}
         <Button kind="primary" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
-        <p className="small muted" style={{ margin: 0 }}>
-          Demo accounts: <span className="mono">admin</span> / <span className="mono">admin-dev-only</span> (programme manager),{" "}
-          <span className="mono">uwase</span> / <span className="mono">caseworker-dev-only</span> (caseworker).
-        </p>
       </form>
     </div>
   );
