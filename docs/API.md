@@ -140,7 +140,7 @@ every filter except `month` (a worklist must not hide an older appeal).
 | GET | `/models/{version}` | Full evaluation report |
 | POST | `/models/{version}/activate` | `{force?, reason?}` — replaces the active model of the same purpose only. Refused (409) if the version's gates failed, unless forced with a reason, which is recorded |
 | GET | `/models/{version}/card` | Everything needed to present a version: description, training facts, evaluation against the baselines, feature importance (mean \|SHAP\|, coefficients or rule terms), settings and launch checks |
-| POST | `/models/what-if` | Score an imagined household (`version` optional, defaults to the active need model). Returns the estimate, range, top reasons, and where it would have landed in the latest allocated cycle. Nothing is stored |
+| POST | `/models/what-if` | Score an imagined household (`version` optional, defaults to the active need model). Returns the estimate, range, top reasons and where it would have landed in the latest allocated cycle, plus (welfare blend models) `score`: the 0–100 need score, its likely range (`low`/`high`), the average applicant's points (`base`) and points per factor, and `context.cutoff_score`. Optional "more details" (`livestock_count`, `land_area`, `earners_count`, `rooms`, `electricity`, `floor_material`); any survey field left out takes the district's typical value. Nothing is stored |
 
 All model endpoints are admin-only.
 

@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 from backend.ml.baselines import DeficitRankModel, RidgePMTModel, RuleBasedModel
-from backend.ml.evaluate import gates
+from backend.ml.evaluate import PRIMARY, gates
 from backend.ml.features import AssetIndex
 from backend.ml.metrics import direction_violations, inclusion_error, spearman, weighted_pinball
 from tests.test_model import _toy
@@ -74,7 +74,7 @@ def test_gates_require_beating_every_baseline():
     base = {"exclusion_error_bottom_decile": 0.02, "spearman_poor": 0.9, "weighted_pinball_mid": 300}
     good = {"exclusion_error_bottom_decile": 0.0, "spearman_poor": 0.95, "weighted_pinball_mid": 200,
             "coverage": 0.80, "direction_violations": {"monthly_income": 0.0}}
-    models = {"lgbm": good, "ridge_pmt": base, "deficit_rank": {**base, "weighted_pinball_mid": np.nan}}
+    models = {PRIMARY: good, "ridge_pmt": base, "deficit_rank": {**base, "weighted_pinball_mid": np.nan}}
     assert gates(models, None)["passed"]
-    assert not gates({**models, "lgbm": {**good, "coverage": 0.70}}, None)["passed"]
-    assert not gates({**models, "lgbm": {**good, "direction_violations": {"monthly_income": 0.2}}}, None)["passed"]
+    assert not gates({**models, PRIMARY: {**good, "coverage": 0.70}}, None)["passed"]
+    assert not gates({**models, PRIMARY: {**good, "direction_violations": {"monthly_income": 0.2}}}, None)["passed"]

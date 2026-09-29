@@ -51,7 +51,9 @@ them with `train`.
 | File | What it does |
 |---|---|
 | `features.py` | Point-in-time survey join, the spec's derived features (row-wise), `AssetIndex` (PMT asset index, fitted once and stored), poverty-gap target |
-| `model.py` | `LGBMNeedModel`, welfare weights, out-of-fold prediction, cross-conformal calibration |
+| `welfare.py` | `WelfareBlendModel`, the need model: consumption target, monotone LightGBM + monotone ridge, need score and exact per-feature points |
+| `scorecard.py` | Groups per-feature points into the eight factors "Try the model" shows |
+| `model.py` | `LGBMNeedModel` (the earlier poverty-gap model, kept as a comparison), welfare weights, out-of-fold prediction, cross-conformal calibration |
 | `baselines.py` | `RidgePMTModel` and `DeficitRankModel` (what the model must beat), `RuleBasedModel` (the placeholder) |
 | `allocate.py` | Deterministic allocation under budget — no learned parameters |
 | `metrics.py` | The spec's evaluation metrics, plus the expected-direction check |
@@ -70,38 +72,52 @@ so evaluation, scoring and the API never care which one they hold.
 
 ## The model
 
+Since 29 Sep 2026 the model `train` fits and registers is the **welfare blend**
+(`welfare.py`, kind `welfare_blend`). The poverty-gap LightGBM that came
+before (`model.py`, kind `lgbm_quantile`) is still trained as a comparison
+and old versions still load.
+
 | | Choice | Why |
 |---|---|---|
-| Target | `poverty_gap = max(0, poverty_line − consumption_pc)` | Higher = needier (see 1 below) |
-| Interval | LightGBM quantile models at the 10th / 90th percentile, widened by a cross-conformal scalar | Sizes the human-review band; 80% coverage |
-| Central estimate (`need_mid`, ranks applicants) | LightGBM Huber regression with monotone constraints | See 4 below |
+| What it learns | `z = −log(consumption_pc)`, turned back into `poverty_gap` (RWF) for allocation | The gap is 0 for every household above the line, so learning it directly discards half the signal |
+| Model | 30% a small monotone LightGBM + 70% a monotone ridge (proxy-means test), averaged in z | The weight beat 20/50/70% out of fold; each half alone ranked the poor worse |
+| Directions | Both halves are held to the same signs: income, assets, livestock, land and earners can only lower need; costs, household size, dependants, illness, disability, food insecurity and every shock can only raise it | "More hardship can never lower a score" holds by construction, not just in tests |
+| Interval | Quantile parts at the 10th / 90th percentile, calibrated by cross-conformal (which may now narrow as well as widen) | Sizes the human-review band; 80% coverage |
 | Weights | `welfare_weights()`: errors on the needier cost more | The spec's central ethical choice |
 | Validation | GroupKFold on `area_code` | Households cluster by area |
-| Explanations | Exact TreeSHAP contributions of the central estimate (LightGBM `pred_contrib`) | Per-decision drivers, stored in `model_scores.top_shap_features` |
+| Need score | 0–100 on a log scale anchored to the poverty line: 50 = at the line, 100 = a quarter of it or less, 0 = four times it or more | What "Try the model" shows |
+| Explanations | Exact per-feature contributions (TreeSHAP for the trees, coefficient × value for ridge), in score points against the average applicant; `scorecard.py` groups them into eight factors | Points add up exactly to the score |
 
 ### Evaluation (synthetic data, out of fold)
 
-| | LightGBM | Ridge PMT | Deficit only | Placeholder |
-|---|---|---|---|---|
-| Exclusion error, bottom decile (headline) | **0.0%** | 0.3% | 60% | 42% |
-| Inclusion error | **10%** | 20% | 31% | 41% |
-| Rank correlation among the poor | **0.955** | 0.923 | 0.404 | 0.275 |
-| Welfare-weighted pinball loss | **214** | 364 | – | – |
-| Interval coverage (target 78–82%) | 80.0% | 80.5% | – | – |
-| Bands: auto / review / defer | 16 / 17 / 64% | 8 / 31 / 58% | 14 / 0 / 82% | 5 / 25 / 68% |
-| Wrong-direction responses (max) | 0.4% | – | – | – |
+| | Welfare blend | LightGBM on the gap | Ridge PMT | Shortfall only | Placeholder |
+|---|---|---|---|---|---|
+| Exclusion error, bottom decile (headline) | 1.9% | 2.9% | 1.8% | 73% | 57% |
+| Inclusion error | 30% | **28%** | 34% | 32% | 41% |
+| Rank correlation among the poor | **0.788** | 0.717 | 0.766 | 0.221 | 0.138 |
+| Welfare-weighted pinball loss | **711** | 821 | 808 | – | – |
+| Interval coverage (target 78–82%) | 80.4% | 79.9% | 80.4% | – | – |
+| Wrong-direction responses (19 inputs checked) | 0.0% on every one | – | – | – | – |
 
-Synthetic data is generated from a clean formula, so these numbers are a
-pipeline check, not a forecast of real-world accuracy.
+The data generator now builds consumption the way real welfare works (see
+`data/generate_synthetic_data.py`): under-reported informal income,
+unrecorded remittances, own food production, asset wealth, shocks, care
+costs and adult equivalents, plus noise. With outcomes for **every**
+household (about seven times more labels than training ever gets) the best
+ranking any candidate reached was about **0.80**, so 0.79 is close to the
+ceiling for this data. Real data will differ: these numbers check the
+pipeline, they don't forecast real-world accuracy.
 
 ### Activation gates (`evaluate.gates`)
 
-A version is activated without `--force` only if it: covers 78–82%; has
-exclusion error no worse than either baseline; ranks the poor better than
+A version is activated without `--force` only if it: covers 78–82%; defers
+no more of the poorest decile than either baseline (within half a
+percentage point, a tie at this sample size); ranks the poor better than
 both; beats ridge on welfare-weighted loss; and moves the wrong way for
-under 5% of households when income, costs, food insecurity or a job-loss
-shock change. The spec leaves the headline exclusion-error and subgroup-gap
-thresholds to be agreed before launch — add them to `gates()` then.
+under 5% of households on each input in
+`evaluate.PRIMARY_EXPECTED_DIRECTION` (19 inputs). The spec leaves the
+headline exclusion-error and subgroup-gap thresholds to be agreed before
+launch: they can be set in the admin console.
 
 ## Things worth knowing before you build on this
 

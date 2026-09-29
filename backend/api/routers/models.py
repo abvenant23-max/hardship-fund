@@ -3,6 +3,7 @@
 dataset); the API lists versions and switches the active one."""
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timezone
 from typing import Literal
 
@@ -18,6 +19,7 @@ from ..platform import get_setting, log
 from ...ml import registry
 from ...ml.baselines import RuleBasedModel
 from ...ml.features import build_features
+from ...ml.scorecard import factor_points
 from ..database import get_conn, get_database
 from ..scoring import models as model_cache
 from ..schemas import ActivateRequest
@@ -72,7 +74,11 @@ def model_card(version: str, conn: Connection = Depends(get_conn)):
     card["features"] = meta.get("feature_names") or meta.get("features")
     if "reference" in meta:           # need model: mean |SHAP| over the applicant population
         shap = meta["reference"].get("mean_abs_shap", {})
-        card["importance"] = [{"feature": k, "value": v} for k, v in sorted(shap.items(), key=lambda kv: -kv[1])[:15]]
+        # welfare blend: contributions are in log-consumption units; show them as need-score points
+        k = 100.0 / math.log(meta["score_span"][0] / meta["score_span"][1]) if meta.get("score_span") else 1.0
+        card["importance_unit"] = "points" if meta.get("score_span") else "rwf"
+        card["importance"] = [{"feature": f, "value": round(v * k, 2)}
+                              for f, v in sorted(shap.items(), key=lambda kv: -kv[1])[:15]]
     elif meta.get("kind") == "repeat_history":
         card["importance"] = [{"feature": f, "value": c} for f, c in zip(meta["features"], meta["coef"])]
     elif meta.get("kind") == "repeat_lgbm":
@@ -109,6 +115,39 @@ class WhatIf(BaseModel):
     assets: list[str] = Field(default_factory=list, description="e.g. ['phone', 'radio']")
     prior_applications_count: int = Field(0, ge=0)
     days_since_last_application: int | None = Field(None, ge=0)
+    # "More details": left out, each takes the district's typical value
+    livestock_count: int | None = Field(None, ge=0)
+    land_area: float | None = Field(None, ge=0, description="hectares")
+    earners_count: int | None = Field(None, ge=0)
+    electricity: bool | None = None
+    floor_material: str | None = None
+
+
+# Survey fields the form never asks about take the district's typical value
+# (median, or most common answer) rather than staying empty: the model has
+# rarely seen an empty housing or livelihood field, and would treat one as
+# a signal of its own.
+_SKIP = {"survey_id", "household_id", "survey_date", "created_at", "consumption_pc"}
+
+
+def _district_typical(conn: Connection, area_code: str) -> dict:
+    df = pd.read_sql(text("""
+        SELECT DISTINCT ON (s.household_id) s.* FROM household_surveys s
+        JOIN households h USING (household_id) WHERE h.area_code = :a
+        ORDER BY s.household_id, s.survey_date DESC"""), conn, params={"a": area_code})
+    out = {}
+    for c in df.columns:
+        if c in _SKIP:
+            continue
+        col = df[c].dropna()
+        if col.empty:
+            out[c] = None
+        elif pd.api.types.is_bool_dtype(col) or not pd.api.types.is_numeric_dtype(col):
+            out[c] = col.mode().iloc[0]
+        else:
+            v = float(col.median())
+            out[c] = int(round(v)) if pd.api.types.is_integer_dtype(col) else v
+    return out
 
 
 @router.post("/what-if")
@@ -128,13 +167,19 @@ def what_if(body: WhatIf, conn: Connection = Depends(get_conn)):
 
     now = datetime.now(timezone.utc)
     survey = {c: None for c in get_database().table("household_surveys").columns.keys()}
+    survey.update(_district_typical(conn, body.area_code))
+    survey.update({k: v for k, v in body.model_dump(include={"income_std_12m", "food_security_score", "rooms",
+                                                               "employment_type", "livestock_count", "land_area",
+                                                               "earners_count", "electricity", "floor_material"}).items()
+                   if v is not None})
     survey.update(survey_id=0, household_id="what-if", survey_date=date.today(), created_at=now,
                   household_size=body.household_size, children_under_5=body.children_under_5,
                   members_over_65=body.members_over_65, monthly_income=body.monthly_income,
-                  essential_costs=body.essential_costs, income_std_12m=body.income_std_12m,
-                  food_security_score=body.food_security_score, rooms=body.rooms, employment_type=body.employment_type,
-                  female_headed=body.female_headed, disability_in_household=body.disability_in_household,
-                  chronic_illness=body.chronic_illness, dependents_requiring_care=0)
+                  essential_costs=body.essential_costs, female_headed=body.female_headed,
+                  # variability scales with the income entered, at the district's typical rate
+                  income_std_12m=body.income_std_12m if body.income_std_12m is not None
+                  else body.monthly_income * float(survey.get("income_seasonality") or 0.0),
+                  disability_in_household=body.disability_in_household, chronic_illness=body.chronic_illness)
     for k in survey:
         if k.startswith("shock_") and k.endswith("_12m"):
             survey[k] = k[len("shock_"):-len("_12m")] in body.shocks
@@ -153,6 +198,7 @@ def what_if(body: WhatIf, conn: Connection = Depends(get_conn)):
                            pd.DataFrame([survey]), pd.DataFrame([application]), area)
     pred = model.predict(feats).iloc[0]
     drivers = model.explain(feats, top_n=6)[0]
+    card = model.scorecard(feats) if hasattr(model, "scorecard") else None
 
     # Where it would have landed: the latest cycle this model allocated.
     latest = conn.execute(text("""
@@ -169,9 +215,18 @@ def what_if(body: WhatIf, conn: Connection = Depends(get_conn)):
         period = conn.execute(text("SELECT period_start FROM funding_cycles WHERE cycle_id = :c"), {"c": latest["cycle_id"]}).scalar()
         context = {"cycle_id": latest["cycle_id"], "period_start": period, "cutoff": cutoff, "likely_band": band,
                    "applicants": int(len(mids)), "needier_than_share": float((mids < pred["need_mid"]).mean()) if len(mids) else None}
+        if card is not None:
+            context["cutoff_score"] = float(model.score_from_need(cutoff))
+    score = None
+    if card is not None:
+        score = {"score": float(card["score"][0]), "base": float(card["base"]),
+                 # the likely range on the same scale: the band is decided on it, not on the score alone
+                 "low": float(model.score_from_need(pred["need_lo"])), "high": float(model.score_from_need(pred["need_hi"])),
+                 "factors": factor_points(card["features"], card["points"][0]),
+                 "scale": [float(x) for x in model.score_span]}
     return {"model_version": row["model_version"], "kind": row["kind"],
             "need_lo": float(pred["need_lo"]), "need_mid": float(pred["need_mid"]), "need_hi": float(pred["need_hi"]),
-            "drivers": [{"feature": f, "contribution": v} for f, v in drivers], "context": context}
+            "drivers": [{"feature": f, "contribution": v} for f, v in drivers], "context": context, "score": score}
 
 
 @router.get("/{version}")
@@ -226,7 +281,8 @@ def launch_thresholds(conn: Connection, metrics: dict) -> dict:
     out = {}
     max_excl = get_setting(conn, "max_exclusion_error")
     if max_excl is not None:
-        excl = ((metrics.get("models") or {}).get("lgbm") or {}).get("exclusion_error_bottom_decile")
+        own = metrics.get("primary", "lgbm")   # the version's own model; "lgbm" before 29 Sep 2026
+        excl = ((metrics.get("models") or {}).get(own) or {}).get("exclusion_error_bottom_decile")
         out["within_max_exclusion_error"] = excl is not None and excl <= float(max_excl)
     max_gap = get_setting(conn, "max_subgroup_gap")
     if max_gap is not None:

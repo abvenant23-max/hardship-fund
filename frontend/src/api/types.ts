@@ -301,6 +301,7 @@ export interface ModelCard {
   metadata: Record<string, unknown>;
   features: string[] | null;
   importance: { feature: string; value: number }[];
+  importance_unit?: "points" | "rwf";
   terms: { feature: string; weight: number }[] | null;
   metadata_missing?: boolean;
 }
@@ -312,7 +313,12 @@ export interface WhatIfResult {
   need_mid: number;
   need_hi: number;
   drivers: { feature: string; contribution: number }[];
-  context: { cycle_id: number; period_start: string; cutoff: number; likely_band: string; applicants: number; needier_than_share: number | null } | null;
+  context: { cycle_id: number; period_start: string; cutoff: number; cutoff_score?: number; likely_band: string; applicants: number; needier_than_share: number | null } | null;
+  /** Need score 0-100 (welfare blend models only): 50 = at the poverty line. */
+  score: {
+    score: number; low: number; high: number; base: number; scale: [number, number];
+    factors: { factor: string; label: string; points: number; drivers: { feature: string; points: number }[] }[];
+  } | null;
 }
 
 export interface AdminUser { user_id: number; username: string; display_name: string; role: Role; caseworker_id: number | null; caseworker: string | null; active: boolean; created_at: string }

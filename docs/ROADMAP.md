@@ -26,8 +26,9 @@ complicated, all I want to show is that it works".
 
 ### Need model (drives allocation)
 
-- **Algorithm:** LightGBM quantile regression — three models at the 10th / 50th / 90th percentile.
-- **Target:** `poverty_gap = max(0, poverty_line − consumption_pc)` (spec option A). Higher = needier.
+- **Algorithm (since 29 Sep 2026):** the welfare blend: 30% monotone LightGBM + 70% monotone ridge, learning log consumption and reporting the poverty gap. It replaced three LightGBM quantile models on the gap, which are kept as a comparison. See `backend/ml/README.md`.
+- **Target:** `poverty_gap = max(0, poverty_line − consumption_pc)` (spec option A). Higher = needier. The blend learns consumption itself, so households above the line still teach it something.
+- **Need score:** 0–100, 50 = at the poverty line, split exactly into points per factor.
 - **Training objective:** welfare-weighted loss (aversion 1.5) — missing a destitute household costs more than missing a borderline one.
 - **Validation:** GroupKFold on `area_code`, 5 folds.
 - **Intervals:** quantile models widened by cross-conformal calibration so the 80% interval actually covers 78–82%.
@@ -104,5 +105,18 @@ penalise people for having needed help before.
   - The database driver is named explicitly: SQLAlchemy 2.1 would otherwise
     look for psycopg 3.
   - Guide: `docs/DEPLOY.md`.
+- [x] **Model improvement and "Try the model".** (done 29 Sep 2026)
+  - Found that the sample data made need depend on income and household
+    size alone, so shocks, assets, health and food insecurity did nothing.
+    The generator now builds consumption realistically, with noise.
+  - New need model (welfare blend) ranking the poor at 0.79 against 0.77
+    for ridge and 0.72 for the previous model, about 98% of the best any
+    model reached with outcomes for everyone. No input moves need the wrong
+    way.
+  - "Try the model" rebuilt: live 0–100 need score against the cycle's
+    cut-off, the likely range behind the decision, the effect of each
+    change, and how the score adds up by factor. Inputs it doesn't ask for
+    take the district's typical value.
+  - `db/setup_database.py --reset` to refill a hosted database.
 
 Demo target: Phases 0–1 plus the dashboard endpoints of Phase 2.

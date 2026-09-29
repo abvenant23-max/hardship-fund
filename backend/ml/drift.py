@@ -79,7 +79,7 @@ def reference_profile(model, features: pd.DataFrame, sample: int = 3_000, seed: 
              for c in X.columns}
     pred = model.predict(features)
     s = features.sample(min(len(features), sample), random_state=seed)
-    contrib = model.boosters["mid"].predict(model.inputs.transform(s), pred_contrib=True)[:, :-1]
+    contrib = model.contributions(s)
     return {
         "rows": int(len(features)),
         "features": feats,
@@ -109,7 +109,7 @@ def drift_report(model, reference: dict, features: pd.DataFrame, groups: pd.Data
     pred = model.predict(features)
     score_psi = psi(reference["score"]["shares"], _numeric_shares(pred["need_mid"], reference["score"]["edges"]))
 
-    contrib = model.boosters["mid"].predict(X, pred_contrib=True)[:, :-1]
+    contrib = model.contributions(features)
     cur_shap = pd.Series(np.abs(contrib).mean(axis=0), index=model.feature_names)
     ref_shap = pd.Series(reference["mean_abs_shap"]).reindex(model.feature_names).fillna(0.0)
     top_ref = ref_shap.sort_values(ascending=False).index[:SHAP_TOP]

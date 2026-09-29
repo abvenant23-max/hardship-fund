@@ -75,9 +75,10 @@ def cmd_train(args) -> None:
     model = report["primary_model"]   # fitted on all labelled rows during evaluation
 
     X, y = feature_matrix(full[labelled], target=TARGET)
-    version = args.version or registry.new_version("lgbm")
+    version = args.version or registry.new_version("welfare")
     fairness = report["fairness"]
     metrics = {
+        "primary": report["primary"],
         "models": report["models"],
         "gates": report["gates"],
         "fairness_pooled": fairness[fairness["cycle_id"].isna()].drop(columns="cycle_id").to_dict("records")

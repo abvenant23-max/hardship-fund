@@ -114,8 +114,9 @@ function NeedModelCard({ health, detail }: { health?: ModelHealth; detail?: Mode
   const a = health?.active_model;
   if (!health) return <Card><Loading lines={8} /></Card>;
   if (!a) return <Card title="Need model"><span className="muted">No active need model.</span></Card>;
-  const models = (detail?.metrics as { models?: Record<string, Record<string, number>> } | null)?.models;
-  const lgbm = models?.lgbm;
+  const m = detail?.metrics as { models?: Record<string, Record<string, number>>; primary?: string } | null;
+  const models = m?.models;
+  const lgbm = models?.[m?.primary ?? "lgbm"];   // the version's own model (named "lgbm" before 29 Sep 2026)
   const gates = Object.entries(a.gates ?? {}).filter(([k, v]) => typeof v === "boolean" && k !== "passed");
   const passed = a.gates?.passed === true;
   return (

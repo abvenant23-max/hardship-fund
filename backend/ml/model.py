@@ -138,18 +138,22 @@ class LGBMNeedModel:
 
     def predict(self, features: pd.DataFrame) -> pd.DataFrame:
         X = self._X(features)
+        mid = self.boosters["mid"].predict(X)
+        # three separate models: keep the estimate inside its range
         return pd.DataFrame({
-            "need_lo": self.boosters["lo"].predict(X) - self.conformal,
-            "need_mid": self.boosters["mid"].predict(X),
-            "need_hi": self.boosters["hi"].predict(X) + self.conformal,
+            "need_lo": np.minimum(self.boosters["lo"].predict(X) - self.conformal, mid),
+            "need_mid": mid,
+            "need_hi": np.maximum(self.boosters["hi"].predict(X) + self.conformal, mid),
         }, index=features.index)
 
+    def contributions(self, features: pd.DataFrame) -> np.ndarray:
+        """Exact TreeSHAP of the central estimate (LightGBM's own
+        pred_contrib: same numbers as the shap package, no extra dependency)."""
+        return self.boosters["mid"].predict(self._X(features), pred_contrib=True)[:, :-1]
+
     def explain(self, features: pd.DataFrame, top_n: int = 5) -> list[list[tuple[str, float]]]:
-        """Top SHAP drivers of the central estimate per row. LightGBM's own
-        pred_contrib is exact TreeSHAP — same numbers as the shap package,
-        no extra dependency."""
-        contrib = self.boosters["mid"].predict(self._X(features), pred_contrib=True)[:, :-1]
-        return _top_contributions(contrib, self.feature_names, top_n)
+        """Top SHAP drivers of the central estimate per row."""
+        return _top_contributions(self.contributions(features), self.feature_names, top_n)
 
     def save(self, directory: Path) -> dict:
         directory.mkdir(parents=True, exist_ok=True)
@@ -239,8 +243,10 @@ def conformal_adjustment(lo: np.ndarray, hi: np.ndarray, y: np.ndarray,
     scores = np.maximum(lo - y, y - hi)
     n = len(scores)
     level = min(1.0, np.ceil((n + 1) * target_coverage) / n)
-    q = float(np.quantile(scores, level))
-    return max(q, 0.0)
+    # Negative q narrows an interval that is already too wide, as CQR allows
+    # (the welfare blend's ranges start wide: every household above the line
+    # has a true gap of exactly 0, which a range touching 0 always covers).
+    return float(np.quantile(scores, level))
 
 
 def selection_weights(observed: pd.DataFrame, all_apps: pd.DataFrame,

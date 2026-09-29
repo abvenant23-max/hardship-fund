@@ -71,14 +71,14 @@ def test_filters_narrow_every_dashboard_figure(client, auth):
     kigali = client.get("/dashboard/summary", headers=auth, params={**month, "region": "Kigali"}).json()
     health = client.get("/dashboard/summary", headers=auth, params={**month, "support_group": "health"}).json()
 
-    assert all_["applicants"] == 471 and all_["budget_applies"] and all_["previous_applicants"] == 476
+    assert all_["applicants"] == 513 and all_["budget_applies"] and all_["previous_applicants"] == 468
     assert 0 < kigali["applicants"] < all_["applicants"] and not kigali["budget_applies"]
-    assert health["applicants"] == 105
+    assert health["applicants"] == 120
 
     types = client.get("/dashboard/support-types", headers=auth, params=month).json()
-    assert sum(t["applicants"] for t in types) == 471
+    assert sum(t["applicants"] for t in types) == 513
     outcomes = client.get("/dashboard/outcomes", headers=auth, params=month).json()
-    assert sum(o["applications"] for o in outcomes) == 471
+    assert sum(o["applications"] for o in outcomes) == 513
     districts = client.get("/dashboard/districts", headers=auth, params={**month, "region": "Kigali"}).json()
     assert {d["region"] for d in districts} == {"Kigali"} and sum(d["applicants"] for d in districts) == kigali["applicants"]
     trend = client.get("/dashboard/monthly", headers=auth, params={**month, "months": 3}).json()
@@ -87,8 +87,8 @@ def test_filters_narrow_every_dashboard_figure(client, auth):
 
 def test_application_list_pages_and_counts(client, auth):
     page = client.get("/applications", headers=auth, params={"month": "2026-08-01", "limit": 10}).json()
-    assert page["total"] == 471 and len(page["items"]) == 10
-    assert sum(page["status_counts"].values()) == 471
+    assert page["total"] == 513 and len(page["items"]) == 10
+    assert sum(page["status_counts"].values()) == 513
     deferred = client.get("/applications", headers=auth, params={"month": "2026-08-01", "status": "deferred", "limit": 5}).json()
     assert deferred["total"] == page["status_counts"]["deferred"] and {i["status"] for i in deferred["items"]} == {"deferred"}
     one = page["items"][0]

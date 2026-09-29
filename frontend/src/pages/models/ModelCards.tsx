@@ -9,6 +9,10 @@ import { Card, Empty, Legend, Loading, Pill, Stat } from "../../components/ui";
 import { BAND, day, featureLabel, num, pct } from "../../lib/format";
 
 export const KIND_LABEL: Record<string, { name: string; what: string }> = {
+  welfare_blend: {
+    name: "Welfare blend need model",
+    what: "Learns each household's consumption, not just the poverty gap, so it also learns from households above the line. A small monotone LightGBM and a ridge proxy-means test are averaged: more hardship can never lower need. Every estimate splits exactly into points per factor, which is the 0–100 need score shown in \"Try the model\". Validated by district (GroupKFold); the range is calibrated to cover 80%.",
+  },
   lgbm_quantile: {
     name: "LightGBM need model",
     what: "Three gradient-boosted models on the welfare-weighted poverty gap: 10th and 90th percentile models give the likely range, and a monotone-constrained Huber model gives the estimate that ranks applicants. Validated by area (GroupKFold); the range is widened by cross-conformal calibration to cover 80%.",
@@ -18,7 +22,11 @@ export const KIND_LABEL: Record<string, { name: string; what: string }> = {
   repeat_lgbm: { name: "LightGBM repeat forecast", what: "A heavily regularised gradient-boosted classifier on survey and application features." },
 };
 
-const CANDIDATE_LABEL: Record<string, string> = { lgbm: "LightGBM (this model)", ridge_pmt: "Ridge PMT", deficit_rank: "Deficit only", rules_placeholder: "Placeholder rules" };
+const CANDIDATE_LABEL: Record<string, string> = {
+  welfare_blend: "Welfare blend", lgbm: "LightGBM on the gap", ridge_pmt: "Ridge PMT", deficit_rank: "Shortfall only", rules_placeholder: "Placeholder rules",
+};
+// Versions trained before 29 Sep 2026 have no "primary" in their metrics: then it was "lgbm".
+const candidateLabel = (n: string, primary: string) => `${CANDIDATE_LABEL[n] ?? n}${n === primary ? " (this model)" : ""}`;
 const METRICS: { key: string; label: string; better: "low" | "high" | "target"; fmt: (v: number) => string; note: string }[] = [
   { key: "exclusion_error_bottom_decile", label: "Poorest 10% deferred", better: "low", fmt: (v) => pct(v, 1, 1), note: "The headline measure" },
   { key: "inclusion_error", label: "Approvals to non-poor households", better: "low", fmt: (v) => pct(v, 1), note: "Reported, never optimised at the expense of the above" },
@@ -99,7 +107,7 @@ function CardView({ version }: { version: string }) {
 
       <div className="grid cols-2">
         {c.importance.length > 0 && (
-          <Card title={v.kind === "repeat_history" ? "Coefficients" : "What drives it"} note={v.kind === "repeat_history" ? "log-odds per unit" : "average influence on the score"}>
+          <Card title={v.kind === "repeat_history" ? "Coefficients" : "What drives it"} note={v.kind === "repeat_history" ? "log-odds per unit" : c.importance_unit === "points" ? "average points it moves the need score" : "average influence on the score"}>
             {v.kind === "repeat_history"
               ? <DriverBars drivers={c.importance.map((i) => [i.feature, i.value])} />
               : c.importance.map((i) => {
@@ -124,7 +132,8 @@ function NeedEvaluation({ metrics }: { metrics: Record<string, unknown> }) {
   const names = Object.keys(models);
   if (!names.length) return <Card title="Evaluation"><span className="muted">No evaluation stored for this version.</span></Card>;
   const fairness = (metrics.fairness_pooled ?? []) as { attribute: string; group: string; n: number; exclusion_error: number }[];
-  const bands = models.lgbm?.bands as unknown as Record<string, number> | undefined;
+  const primary = (metrics.primary as string | undefined) ?? "lgbm";
+  const bands = models[primary]?.bands as unknown as Record<string, number> | undefined;
   return (
     <>
       <Card title="Against the baselines" note="out of fold, on areas each model never saw">
@@ -140,7 +149,7 @@ function NeedEvaluation({ metrics }: { metrics: Record<string, unknown> }) {
                 <div className="row between"><b style={{ fontSize: 13 }}>{m.label}</b><span className="small muted">{m.better === "low" ? "lower is better" : m.better === "high" ? "higher is better" : "closest to 80%"}</span></div>
                 {vals.map(([n, val]) => (
                   <div key={n} style={{ display: "grid", gridTemplateColumns: "150px minmax(0,1fr) 64px", gap: 8, alignItems: "center" }}>
-                    <span className="small" style={{ fontWeight: n === "lgbm" ? 600 : 400 }}>{CANDIDATE_LABEL[n] ?? n}</span>
+                    <span className="small" style={{ fontWeight: n === primary ? 600 : 400 }}>{candidateLabel(n, primary)}</span>
                     <Meter value={Math.abs(val)} max={peak} color={val === best ? "var(--teal)" : "var(--grey)"} track="var(--chip)" />
                     <span className="small" style={{ textAlign: "right", fontWeight: val === best ? 700 : 400 }}>{m.fmt(val)}</span>
                   </div>

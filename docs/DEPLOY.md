@@ -87,6 +87,21 @@ automatically.
 - **Secrets:** keep the External Database URL and the Write token to
   yourself. Anyone with either can change the data or the models.
 
+## Refreshing the data and models
+
+When the sample data or the model changes (as on 29 Sep 2026), refill the
+database from your computer with the same two variables as step 3:
+
+```powershell
+.venv\Scripts\python db/setup_database.py --dsn "<External Database URL>" --reset --train
+```
+
+`--reset` deletes every table and all data first, including accounts and
+anything entered on the live app. It asks you to type the database name to
+confirm. The admin account comes back with the `HARDSHIP_ADMIN_PASSWORD` set
+on Render once the service restarts, so redeploy (or restart) the service
+afterwards.
+
 ## Free-tier limits
 
 These were Render's terms at the time of writing; check render.com/pricing.

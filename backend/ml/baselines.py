@@ -36,6 +36,9 @@ class RidgePMTModel:
     @staticmethod
     def _X(features: pd.DataFrame) -> pd.DataFrame:
         X, _ = feature_matrix(features)
+        # plain str names: scikit-learn rejects str subclasses such as
+        # SQLAlchemy's quoted_name (what-if rows are built from table columns)
+        X.columns = pd.Index(["%s" % c for c in X.columns], dtype=object)
         for c in X.columns:
             if not pd.api.types.is_numeric_dtype(X[c]):
                 X[c] = X[c].astype(str)   # one-hot needs plain labels; NaN -> "nan" level

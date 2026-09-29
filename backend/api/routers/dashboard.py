@@ -271,7 +271,7 @@ def model_health(conn: Connection = Depends(get_conn)):
     spec says must stay above ~5% for human review to count as real."""
     active = conn.execute(text("""SELECT model_version, kind, activated_at, trained_at, training_rows,
                                          metrics->'gates' AS gates,
-                                         metrics->'models'->'lgbm' AS evaluation
+                                         COALESCE(metrics->'models'->(metrics->>'primary'), metrics->'models'->'lgbm') AS evaluation
                                   FROM model_versions WHERE status = 'active' AND purpose = 'need'""")).mappings().first()
     bands = conn.execute(text("""
         SELECT band, count(*) AS n FROM (

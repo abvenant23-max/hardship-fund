@@ -17,9 +17,10 @@ import pandas as pd
 from . import store
 from .baselines import RuleBasedModel
 from .model import LGBMNeedModel
+from .welfare import WelfareBlendModel
 from .repeat import HistoryRepeatModel, LGBMRepeatModel
 
-ARTIFACT_KINDS = {m.kind: m for m in (LGBMNeedModel, LGBMRepeatModel, HistoryRepeatModel)}
+ARTIFACT_KINDS = {m.kind: m for m in (WelfareBlendModel, LGBMNeedModel, LGBMRepeatModel, HistoryRepeatModel)}
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 PLACEHOLDER_VERSION = "rules-v0"   # seeded as active in schema.sql

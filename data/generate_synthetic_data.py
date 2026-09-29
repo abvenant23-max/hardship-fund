@@ -10,7 +10,16 @@ behaves, rather than independently randomising each column.
 
 Design choices worth flagging for whoever reads this later:
 
-  - consumption_pc (the model's training target) is filled for every row
+  - consumption_pc (the model's training target) is built the way real
+    welfare works, not from reported income alone: true resources (which
+    informal and jobless households under-report, plus unrecorded
+    remittances and, in rural areas, food they grow or raise), cut by the
+    year's shocks and by health costs, spread over adult equivalents, with
+    unexplained noise on top. So assets, housing, shocks, food insecurity
+    and health all carry real signal, in the directions a caseworker would
+    expect, and no model can be perfect.
+
+  - consumption_pc is filled for every row
     here because we are the ground-truth generator. In production this
     column is only observed for approved/audited applicants — see the
     selective-labels section of the design spec. The ML pipeline
@@ -258,18 +267,30 @@ for i in range(N_HOUSEHOLDS):
     earners_count = int(np.clip(round(RNG.normal(1.6 - 0.5 * pct, 0.8)), 0, household_size))
     hours_worked = round(max(0, RNG.normal(38 - 10 * pct, 10)), 1) if employment_type != "unemployed" else round(max(0, RNG.normal(4, 4)), 1)
 
+    # True income, then what gets reported: formal wages are reported almost
+    # fully; informal and self-employed income is under-reported; households
+    # without work report little but live on support nobody records.
     base_income = 95_000 * math.exp(-1.6 * pct) * area_housing_cost[household_area[i]]
-    monthly_income = round(max(3_000, RNG.normal(base_income, base_income * 0.28)), 2)
+    work_factor = {"formal": 1.25, "informal": 0.90, "self_employed": 1.0, "unemployed": 0.55,
+                   "unable_to_work": 0.50}[employment_type]
+    # young children keep a parent from earning (childcare time), elderly members need care
+    care_factor = 0.92 ** children_under_5 * 0.96 ** members_over_65
+    true_income = max(3_000.0, base_income * work_factor * care_factor * math.exp(RNG.normal(0, 0.25)))
+    report_share = {"formal": RNG.normal(0.97, 0.04), "informal": RNG.uniform(0.55, 0.95),
+                    "self_employed": RNG.uniform(0.50, 0.95), "unemployed": RNG.uniform(0.45, 0.90),
+                    "unable_to_work": RNG.uniform(0.50, 0.90)}[employment_type]
+    monthly_income = round(max(0.0, true_income * float(np.clip(report_share, 0.05, 1.0))), 2)
     income_std_12m = round(max(0, monthly_income * (0.10 + 0.35 * pct) * abs(RNG.normal(1, 0.3))), 2)
     income_seasonality = round(np.clip(income_std_12m / max(monthly_income, 1) + RNG.normal(0, 0.03), 0, 1.5), 4)
 
-    essential_base = (18_000 * household_size) * area_housing_cost[household_area[i]]
-    essential_costs = round(max(5_000, RNG.normal(essential_base, essential_base * 0.15)), 2)
-
-    food_security_score = int(np.clip(round(RNG.normal(1.5 + 5.5 * pct, 1.8)), 0, 8))  # FIES-like, higher = worse
     chronic_illness = bool(RNG.random() < 0.12 + 0.10 * pct)
     disability_in_household = bool(RNG.random() < 0.06 + 0.05 * pct)
     dependents_requiring_care = int(np.clip(RNG.binomial(household_size, 0.05 + 0.05 * pct), 0, household_size))
+
+    essential_base = (18_000 * household_size) * area_housing_cost[household_area[i]]
+    essential_base += 9_000 * chronic_illness + 7_000 * disability_in_household   # care and medicine
+    essential_base += 4_000 * children_under_5                                     # childcare, milk, clinic
+    essential_costs = round(max(5_000, RNG.normal(essential_base, essential_base * 0.15)), 2)
 
     shocks = {
         "shock_bereavement_12m": RNG.random() < 0.05,
@@ -282,7 +303,25 @@ for i in range(N_HOUSEHOLDS):
     }
     shocks = {k: bool(v) for k, v in shocks.items()}
 
-    consumption_pc = round(max(1_500, (monthly_income * 0.75 + 5_000) / max(household_size, 1) * math.exp(RNG.normal(0, 0.08))), 2)
+    # --- true consumption (the target): resources, shocks, health, household makeup ---
+    remittance = RNG.exponential(15_000) if RNG.random() < 0.18 else 0.0                    # never recorded
+    own_production = ((livestock_count or 0) * 1_500 + (land_area or 0) * 18_000) if is_rural else 0.0
+    shock_cut = {"shock_bereavement_12m": 0.88, "shock_serious_illness_12m": 0.85, "shock_job_loss_12m": 0.80,
+                 "shock_eviction_12m": 0.86, "shock_displacement_12m": 0.75, "shock_disaster_12m": 0.82,
+                 "shock_crop_failure_12m": 0.85}
+    shock_mult = math.prod(m for k, m in shock_cut.items() if shocks[k])
+    health_mult = (0.92 if chronic_illness else 1.0) * (0.90 if disability_in_household else 1.0)
+    adults = max(household_size - children_under_5 - members_over_65, 1)
+    adult_equivalents = 1 + 0.7 * (adults - 1) + 0.5 * children_under_5 + 0.8 * members_over_65
+    asset_wealth = sum(w for k, w in {"asset_car": 6, "asset_motorcycle": 3, "asset_fridge": 2,
+                                      "asset_washing_machine": 2, "asset_tv": 1.5, "asset_bicycle": 1,
+                                      "asset_radio": 0.5, "asset_phone": 0.5}.items() if assets[k])
+    resources = 0.8 * true_income + remittance + own_production + 3_500 * asset_wealth + 4_000
+    consumption_pc = round(max(1_500, resources * shock_mult * health_mult / adult_equivalents
+                               * math.exp(RNG.normal(0, 0.15))), 2)
+
+    # Food insecurity follows from low consumption (as FIES does in real surveys).
+    food_security_score = int(np.clip(round(RNG.normal(7.5 - 1.6 * math.log(consumption_pc / 3_000 + 1), 1.2)), 0, 8))
 
     # intake survey, taken in the fortnight before registration completes, so
     # every application is scored on survey data that existed when it was
